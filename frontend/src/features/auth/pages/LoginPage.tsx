@@ -9,23 +9,27 @@ import { getErrorMessage } from "../../../api/client";
 import { login } from "../../../api/auth.api";
 import { useAuthStore } from "../../../app/store/auth";
 
+const ROLE_ROUTES: Record<string, string> = {
+  admin: "/app/admin",
+  tienda: "/app/tienda",
+  repartidor: "/app/repartidor",
+  cliente: "/app/cliente",
+};
+
+const ROLE_PRIORITY = ["admin", "tienda", "repartidor", "cliente"] as const;
+
 function getDefaultRoute(roles: string[] | undefined) {
   if (!roles || roles.length === 0) {
     return "/";
   }
-  const primary = roles[0]?.toLowerCase();
-  switch (primary) {
-    case "cliente":
-      return "/app/cliente";
-    case "tienda":
-      return "/app/tienda";
-    case "repartidor":
-      return "/app/repartidor";
-    case "admin":
-      return "/app/admin";
-    default:
-      return "/";
+  const normalized = roles.map((role) => role.toLowerCase());
+  for (const role of ROLE_PRIORITY) {
+    if (normalized.includes(role)) {
+      return ROLE_ROUTES[role];
+    }
   }
+  const first = normalized[0];
+  return ROLE_ROUTES[first] ?? "/";
 }
 
 export default function LoginPage() {
@@ -36,9 +40,11 @@ export default function LoginPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "").trim();
-    const password = String(formData.get("password") ?? "").trim();
+  const formData = new FormData(event.currentTarget);
+  const emailValue = formData.get("email");
+  const passwordValue = formData.get("password");
+  const email = typeof emailValue === "string" ? emailValue.trim() : "";
+  const password = typeof passwordValue === "string" ? passwordValue.trim() : "";
 
     setError(null);
     setLoading(true);

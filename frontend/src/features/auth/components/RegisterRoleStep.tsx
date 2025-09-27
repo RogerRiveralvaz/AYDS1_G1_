@@ -13,37 +13,39 @@ import { telefonoSchema } from "../../../utils/validators";
 const direccionSchema = z.object({
   linea1: z.string().min(3, "Requerido"),
   ciudad: z.string().min(2, "Requerido"),
-  pais: z.string().length(2, "Usa el cA3digo ISO (ej. GT)").default("GT"),
+  pais: z.string().length(2, "Usa el codigo ISO de 2 letras").default("GT"),
   referencia: z.string().optional(),
 });
 
 const clienteSchema = z.object({
-  telefono: telefonoSchema,
   direccion: direccionSchema,
 });
 
 const tiendaSchema = z.object({
   telefono: telefonoSchema,
   razon_social: z.string().min(3, "Requerido"),
-  email_contacto: z.string().email(),
+  identificacion_legal: z.string().min(3, "Requerido"),
+  email_contacto: z.string().email("Correo valido"),
   cuenta_bancaria: z.string().min(6, "Requerido"),
   url_logo: z.string().url().optional().or(z.literal("")),
+  categoria_id: z.coerce.number().min(1, "Selecciona una categoria"),
   direccion: direccionSchema.partial({ referencia: true }).optional(),
+  horarios: z.string().optional(),
 });
 
 const repartidorSchema = z.object({
-  telefono: telefonoSchema.optional(),
+  direccion: direccionSchema,
   dpi: z.string().min(6, "Requerido"),
   vehiculo_tipo: z.enum(["BICICLETA", "MOTO", "AUTO"] as const),
   cuenta_bancaria: z.string().min(6, "Requerido"),
-  url_foto: z.string().url(),
+  url_foto: z.string().url("Debe ser una URL"),
   licencia_numero: z.string().optional(),
   licencia_tipo: z.enum(["MOTO", "AUTO", "NO_APLICA"] as const).optional(),
   placa: z.string().optional(),
 });
 
 const adminSchema = z.object({
-  telefono: telefonoSchema.optional(),
+  nivel_permisos: z.string().min(3, "Requerido"),
 });
 
 export type ClienteDetails = z.infer<typeof clienteSchema>;
@@ -51,20 +53,38 @@ export type TiendaDetails = z.infer<typeof tiendaSchema>;
 export type RepartidorDetails = z.infer<typeof repartidorSchema>;
 export type AdminDetails = z.infer<typeof adminSchema>;
 
+type ClienteFormValues = z.input<typeof clienteSchema>;
+type TiendaFormValues = z.input<typeof tiendaSchema>;
+type RepartidorFormValues = z.input<typeof repartidorSchema>;
+type AdminFormValues = z.input<typeof adminSchema>;
+
 export type RoleDetailsResult =
   | ({ rol: "CLIENTE" } & ClienteDetails)
   | ({ rol: "TIENDA" } & TiendaDetails)
   | ({ rol: "REPARTIDOR" } & RepartidorDetails)
   | ({ rol: "ADMIN" } & AdminDetails);
 
-type RegisterRoleStepProps = {
+const TIENDA_CATEGORIES: Array<{ id: number; label: string }> = [
+  { id: 1, label: "Supermercado" },
+  { id: 2, label: "Farmacia" },
+  { id: 3, label: "Ferreteria" },
+  { id: 4, label: "Lacteos" },
+  { id: 5, label: "Panaderia" },
+  { id: 6, label: "Bebidas" },
+  { id: 7, label: "Medicamentos" },
+  { id: 8, label: "Higiene" },
+  { id: 9, label: "Herramientas" },
+  { id: 10, label: "Materiales" },
+];
+
+interface RegisterRoleStepProps {
   role: RoleCode;
   accountEmail: string;
   defaultValues?: Partial<RoleDetailsResult>;
   onBack: () => void;
   onSubmit: (values: RoleDetailsResult) => Promise<void> | void;
   submitting?: boolean;
-};
+}
 
 export function RegisterRoleStep({
   role,
@@ -126,25 +146,20 @@ function ClienteForm({
   onSubmit: (values: ClienteDetails) => Promise<void> | void;
   submitting?: boolean;
 }>) {
-  const form = useForm<ClienteDetails>({
+  const form = useForm<ClienteFormValues, unknown, ClienteDetails>({
     resolver: zodResolver(clienteSchema),
     defaultValues: {
-      telefono: "",
       direccion: {
         linea1: "",
         ciudad: "",
         pais: "GT",
         referencia: "",
+        ...defaultValues?.direccion,
       },
-      ...defaultValues,
     },
   });
 
-  const {
-    handleSubmit,
-    register,
-    formState: { errors },
-  } = form;
+  const { handleSubmit, register, formState } = form;
 
   return (
     <form
@@ -152,22 +167,20 @@ function ClienteForm({
       onSubmit={handleSubmit(onSubmit)}
       noValidate
     >
-      <FormField label="TelAfono" required error={errors.telefono?.message}>
-        <Input {...register("telefono")} inputMode="tel" autoComplete="tel" />
-      </FormField>
+      <h2 className="text-lg font-semibold">Direccion de entrega principal</h2>
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="DirecciA3n" required error={errors.direccion?.linea1?.message}>
-          <Input {...register("direccion.linea1")} placeholder="Calle, nAomero" />
+        <FormField label="Direccion" required error={formState.errors.direccion?.linea1?.message}>
+          <Input {...register('direccion.linea1')} placeholder="Calle, numero, zona" />
         </FormField>
-        <FormField label="Ciudad" required error={errors.direccion?.ciudad?.message}>
-          <Input {...register("direccion.ciudad")} />
+        <FormField label="Ciudad" required error={formState.errors.direccion?.ciudad?.message}>
+          <Input {...register('direccion.ciudad')} />
         </FormField>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="PaAs" required error={errors.direccion?.pais?.message}>
-          <Input {...register("direccion.pais")} maxLength={2} placeholder="GT" />
+        <FormField label="Pais" required error={formState.errors.direccion?.pais?.message}>
+          <Input maxLength={2} {...register("direccion.pais")} />
         </FormField>
-        <FormField label="Referencia" error={errors.direccion?.referencia?.message}>
+        <FormField label="Referencia" error={formState.errors.direccion?.referencia?.message}>
           <Textarea rows={2} {...register("direccion.referencia")} />
         </FormField>
       </div>
@@ -189,28 +202,28 @@ function TiendaForm({
   submitting?: boolean;
   accountEmail: string;
 }>) {
-  const form = useForm<TiendaDetails>({
+  const form = useForm<TiendaFormValues, unknown, TiendaDetails>({
     resolver: zodResolver(tiendaSchema),
     defaultValues: {
       telefono: "",
       razon_social: "",
+      identificacion_legal: "",
       email_contacto: accountEmail,
       cuenta_bancaria: "",
       url_logo: "",
+      categoria_id: TIENDA_CATEGORIES[0]?.id ?? 1,
       direccion: {
         linea1: "",
         ciudad: "",
         pais: "GT",
+        referencia: "",
       },
+      horarios: "",
       ...defaultValues,
     },
   });
 
-  const {
-    handleSubmit,
-    register,
-    formState: { errors },
-  } = form;
+  const { handleSubmit, register, formState } = form;
 
   return (
     <form
@@ -218,37 +231,59 @@ function TiendaForm({
       onSubmit={handleSubmit(onSubmit)}
       noValidate
     >
-      <FormField label="RazA3n social" required error={errors.razon_social?.message}>
-        <Input {...register("razon_social")} />
+      <FormField label="Nombre comercial" required error={formState.errors.razon_social?.message}>
+        <Input {...register('razon_social')} />
       </FormField>
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="TelAfono" required error={errors.telefono?.message}>
-          <Input {...register("telefono")} inputMode="tel" />
+        <FormField label="Documento legal" required error={formState.errors.identificacion_legal?.message}>
+          <Input {...register('identificacion_legal')} placeholder="DPI o NIT" />
         </FormField>
-        <FormField label="Correo de contacto" required error={errors.email_contacto?.message}>
-          <Input type="email" {...register("email_contacto")} />
+        <FormField label="Telefono" required error={formState.errors.telefono?.message}>
+          <Input {...register('telefono')} inputMode="tel" />
         </FormField>
       </div>
-      <FormField label="Cuenta bancaria" required error={errors.cuenta_bancaria?.message}>
-        <Input {...register("cuenta_bancaria")} />
-      </FormField>
-      <FormField label="Logo (URL)" error={errors.url_logo?.message}>
-        <Input type="url" placeholder="https://..." {...register("url_logo")} />
-      </FormField>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Correo de contacto" required error={formState.errors.email_contacto?.message}>
+          <Input type="email" {...register('email_contacto')} />
+        </FormField>
+        <FormField label="Cuenta bancaria" required error={formState.errors.cuenta_bancaria?.message}>
+          <Input {...register('cuenta_bancaria')} />
+        </FormField>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Categoria" required error={formState.errors.categoria_id?.message}>
+        <Select {...register("categoria_id", { valueAsNumber: true })}>
+            {TIENDA_CATEGORIES.map((categoria) => (
+              <option key={categoria.id} value={categoria.id}>
+                {categoria.label}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+        <FormField label="Logo (URL)" error={formState.errors.url_logo?.message}>
+          <Input type="url" placeholder="https://..." {...register('url_logo')} />
+        </FormField>
+      </div>
       <fieldset className="space-y-3 rounded-lg border border-dashed border-slate-300 p-4 text-sm dark:border-slate-700">
-        <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">DirecciA3n</legend>
+        <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Direccion</legend>
         <div className="grid gap-3 sm:grid-cols-3">
-          <FormField label="DirecciA3n" error={errors.direccion?.linea1?.message}>
-            <Input {...register("direccion.linea1")} />
+          <FormField label="Linea 1" error={formState.errors.direccion?.linea1?.message}>
+            <Input {...register('direccion.linea1')} />
           </FormField>
-          <FormField label="Ciudad" error={errors.direccion?.ciudad?.message}>
-            <Input {...register("direccion.ciudad")} />
+          <FormField label="Ciudad" error={formState.errors.direccion?.ciudad?.message}>
+            <Input {...register('direccion.ciudad')} />
           </FormField>
-          <FormField label="PaAs" error={errors.direccion?.pais?.message}>
-            <Input maxLength={2} {...register("direccion.pais")} />
+          <FormField label="Pais" error={formState.errors.direccion?.pais?.message}>
+          <Input maxLength={2} {...register("direccion.pais")} />
           </FormField>
         </div>
+        <FormField label="Referencia" error={formState.errors.direccion?.referencia?.message}>
+          <Textarea rows={2} {...register('direccion.referencia')} />
+        </FormField>
       </fieldset>
+      <FormField label="Horarios (texto libre)" error={formState.errors.horarios?.message}>
+        <Textarea rows={2} placeholder="Lun a Sab 08:00 - 18:00" {...register("horarios")} />
+      </FormField>
       <Actions submitting={submitting} onBack={onBack} />
     </form>
   );
@@ -265,10 +300,15 @@ function RepartidorForm({
   onSubmit: (values: RepartidorDetails) => Promise<void> | void;
   submitting?: boolean;
 }>) {
-  const form = useForm<RepartidorDetails>({
+  const form = useForm<RepartidorFormValues, unknown, RepartidorDetails>({
     resolver: zodResolver(repartidorSchema),
     defaultValues: {
-      telefono: "",
+      direccion: {
+        linea1: "",
+        ciudad: "",
+        pais: "GT",
+        referencia: "",
+      },
       dpi: "",
       vehiculo_tipo: "MOTO",
       cuenta_bancaria: "",
@@ -280,11 +320,7 @@ function RepartidorForm({
     },
   });
 
-  const {
-    handleSubmit,
-    register,
-    formState: { errors },
-  } = form;
+  const { handleSubmit, register, formState } = form;
 
   return (
     <form
@@ -292,42 +328,56 @@ function RepartidorForm({
       onSubmit={handleSubmit(onSubmit)}
       noValidate
     >
-      <FormField label="DPI" required error={errors.dpi?.message}>
-        <Input {...register("dpi")} />
+      <FormField label="DPI" required error={formState.errors.dpi?.message}>
+        <Input {...register('dpi')} />
       </FormField>
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="Tipo de vehAculo" required error={errors.vehiculo_tipo?.message}>
-          <Select {...register("vehiculo_tipo")}>
-            <option value="BICICLETA">Bicicleta</option>
-            <option value="MOTO">Moto</option>
-            <option value="AUTO">AutomA3vil</option>
+        <FormField label="Tipo de vehiculo" required error={formState.errors.vehiculo_tipo?.message}>
+          <Select {...register('vehiculo_tipo')}>
+            <option value='BICICLETA'>Bicicleta</option>
+            <option value='MOTO'>Moto</option>
+            <option value='AUTO'>Automovil</option>
           </Select>
         </FormField>
-        <FormField label="Cuenta bancaria" required error={errors.cuenta_bancaria?.message}>
-          <Input {...register("cuenta_bancaria")} />
+        <FormField label="Cuenta bancaria" required error={formState.errors.cuenta_bancaria?.message}>
+          <Input {...register('cuenta_bancaria')} />
         </FormField>
       </div>
-      <FormField label="Foto (URL)" required error={errors.url_foto?.message}>
-        <Input type="url" placeholder="https://" {...register("url_foto")} />
+      <FormField label="Foto (URL)" required error={formState.errors.url_foto?.message}>
+        <Input type='url' placeholder='https://...' {...register('url_foto')} />
       </FormField>
       <div className="grid gap-4 sm:grid-cols-3">
-        <FormField label="Licencia nAomero" error={errors.licencia_numero?.message}>
-          <Input {...register("licencia_numero")} />
+        <FormField label="Numero de licencia" error={formState.errors.licencia_numero?.message}>
+          <Input {...register('licencia_numero')} />
         </FormField>
-        <FormField label="Tipo de licencia" error={errors.licencia_tipo?.message}>
-          <Select {...register("licencia_tipo")}> 
-            <option value="NO_APLICA">No aplica</option>
-            <option value="MOTO">Moto</option>
-            <option value="AUTO">Auto</option>
+        <FormField label="Tipo de licencia" error={formState.errors.licencia_tipo?.message}>
+          <Select {...register('licencia_tipo')}>
+            <option value='NO_APLICA'>No aplica</option>
+            <option value='MOTO'>Moto</option>
+            <option value='AUTO'>Auto</option>
           </Select>
         </FormField>
-        <FormField label="Placa" error={errors.placa?.message}>
-          <Input {...register("placa")} />
+        <FormField label="Placa" error={formState.errors.placa?.message}>
+          <Input {...register('placa')} />
         </FormField>
       </div>
-      <FormField label="TelAfono" error={errors.telefono?.message}>
-        <Input {...register("telefono")} inputMode="tel" />
-      </FormField>
+      <fieldset className="space-y-3 rounded-lg border border-dashed border-slate-300 p-4 text-sm dark:border-slate-700">
+        <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Direccion de residencia</legend>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <FormField label="Direccion" error={formState.errors.direccion?.linea1?.message}>
+            <Input {...register('direccion.linea1')} />
+          </FormField>
+          <FormField label="Ciudad" error={formState.errors.direccion?.ciudad?.message}>
+            <Input {...register('direccion.ciudad')} />
+          </FormField>
+          <FormField label="Pais" error={formState.errors.direccion?.pais?.message}>
+            <Input maxLength={2} {...register('direccion.pais')} />
+          </FormField>
+        </div>
+        <FormField label="Referencia" error={formState.errors.direccion?.referencia?.message}>
+          <Textarea rows={2} {...register('direccion.referencia')} />
+        </FormField>
+      </fieldset>
       <Actions submitting={submitting} onBack={onBack} />
     </form>
   );
@@ -344,19 +394,15 @@ function AdminForm({
   onSubmit: (values: AdminDetails) => Promise<void> | void;
   submitting?: boolean;
 }>) {
-  const form = useForm<AdminDetails>({
+  const form = useForm<AdminFormValues, unknown, AdminDetails>({
     resolver: zodResolver(adminSchema),
     defaultValues: {
-      telefono: "",
+      nivel_permisos: "",
       ...defaultValues,
     },
   });
 
-  const {
-    handleSubmit,
-    register,
-    formState: { errors },
-  } = form;
+  const { handleSubmit, register, formState } = form;
 
   return (
     <form
@@ -364,11 +410,11 @@ function AdminForm({
       onSubmit={handleSubmit(onSubmit)}
       noValidate
     >
-      <FormField label="TelAfono" error={errors.telefono?.message}>
-        <Input {...register("telefono")} inputMode="tel" />
+      <FormField label="Nivel de permisos" required error={formState.errors.nivel_permisos?.message}>
+        <Input {...register('nivel_permisos')} placeholder='Ej. supervisor, auditor' />
       </FormField>
       <div className="rounded-md border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-slate-700">
-        <p>Como administrador no necesitas mAs datos, pero podrAs completarlos luego en tu perfil.</p>
+        <p>Podras ajustar permisos adicionales desde el panel de administracion.</p>
       </div>
       <Actions submitting={submitting} onBack={onBack} />
     </form>
@@ -378,11 +424,11 @@ function AdminForm({
 function Actions({ submitting, onBack }: Readonly<{ submitting?: boolean; onBack: () => void }>) {
   return (
     <div className="flex justify-between">
-      <Button type="button" variant="outline" onClick={onBack}>
-        AtrAs
+      <Button type='button' variant='outline' onClick={onBack}>
+        Atras
       </Button>
-      <Button type="submit" disabled={submitting}>
-        {submitting ? "Guardandoa" : "Continuar"}
+      <Button type='submit' disabled={submitting}>
+        {submitting ? 'Guardando...' : 'Continuar'}
       </Button>
     </div>
   );

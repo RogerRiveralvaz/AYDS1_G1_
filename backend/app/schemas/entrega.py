@@ -11,6 +11,8 @@ class EntregaSchema(Schema):
     aceptada_en = fields.DateTime(allow_none=True)
     recogida_en = fields.DateTime(allow_none=True)
     entregada_en = fields.DateTime(allow_none=True)
+    distancia_km = fields.Decimal(as_string=True, allow_none=True)
+    pago_repartidor_q = fields.Decimal(as_string=True, allow_none=True)
     pedido = fields.Nested(PedidoResumenSchema)
 
 

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "../../utils/cn";
 
-type BadgeVariant = "default" | "success" | "warning" | "danger" | "info";
+export type BadgeVariant = "default" | "success" | "warning" | "danger" | "info";
 
 const variantStyles: Record<BadgeVariant, string> = {
   default: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",

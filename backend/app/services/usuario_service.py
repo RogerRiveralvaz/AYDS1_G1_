@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from sqlalchemy.orm import joinedload, selectinload
+
 from ..extensions import db
 from ..models import Rol, Usuario, UsuarioRol
 from . import NotFoundError
@@ -15,9 +17,20 @@ class UsuarioService:
         return query.order_by(Usuario.id_usuario).all()
 
     def get_by_id(self, user_id: int) -> Usuario:
-        usuario = Usuario.query.get(user_id)
+        usuario = (
+            Usuario.query.options(
+                selectinload(Usuario.roles).joinedload(UsuarioRol.rol),
+                selectinload(Usuario.direcciones),
+                joinedload(Usuario.perfil_cliente),
+            )
+            .filter_by(id_usuario=user_id)
+            .first()
+        )
         if not usuario:
             raise NotFoundError("Usuario no encontrado")
+        perfil = usuario.perfil_cliente
+        for direccion in usuario.direcciones:
+            direccion.es_predeterminada = bool(perfil and perfil.id_direccion_defecto == direccion.id_direccion)
         return usuario
 
     def asignar_roles(self, usuario: Usuario, roles: Iterable[str]) -> Usuario:
@@ -39,3 +52,9 @@ class UsuarioService:
             usuario.activo = activo
         db.session.commit()
         return usuario
+
+    def actualizar_perfil(self, usuario: Usuario, data: dict) -> Usuario:
+        for campo, valor in data.items():
+            setattr(usuario, campo, valor)
+        db.session.commit()
+        return self.get_by_id(usuario.id_usuario)

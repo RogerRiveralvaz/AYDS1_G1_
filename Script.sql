@@ -96,7 +96,7 @@ CREATE TABLE direccion (
   estado VARCHAR(80) NULL,
   codigo_postal VARCHAR(20) NULL,
   pais CHAR(2) NOT NULL DEFAULT 'GT',
-  ubicacion POINT SRID 4326 NULL,
+  ubicacion VARCHAR(255) NULL,
   creado_en DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   CONSTRAINT fk_dir_usuario FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

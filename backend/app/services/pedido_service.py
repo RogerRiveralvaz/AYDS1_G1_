@@ -4,6 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Iterable
 
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload, selectinload
 
 from ..extensions import db
@@ -23,6 +24,12 @@ _PEDIDO_TRANSICIONES: dict[str, set[str]] = {
     "PENDIENTE": {"CONFIRMADO"},
     "CONFIRMADO": {"ENTREGADO"},
     "ENTREGADO": set(),
+}
+
+_ESTADO_ALIASES: dict[str, set[str]] = {
+    "PENDIENTE": {"PENDIENTE", "PENDING"},
+    "CONFIRMADO": {"CONFIRMADO", "CONFIRMED", "PREPARING", "READY"},
+    "ENTREGADO": {"ENTREGADO", "DELIVERED"},
 }
 
 
@@ -149,6 +156,7 @@ class PedidoService:
         if not pedido:
             raise NotFoundError("Pedido no encontrado")
 
+        canon_destino, _ = self._resolver_codigo(codigo_estado)
         estado = self._estado_por_codigo(codigo_estado)
         if pedido.estado and pedido.estado.id_estado_pedido == pedido.id_estado_pedido:
             estado_actual = pedido.estado.codigo
@@ -156,14 +164,16 @@ class PedidoService:
             estado_actual_obj = EstadoPedido.query.get(pedido.id_estado_pedido)
             estado_actual = estado_actual_obj.codigo if estado_actual_obj else None
 
-        if estado_actual == codigo_estado:
+        canon_actual, _ = self._resolver_codigo(estado_actual) if estado_actual else (None, set())
+
+        if canon_actual == canon_destino:
             return pedido
-        if estado_actual and codigo_estado not in _PEDIDO_TRANSICIONES.get(estado_actual, set()):
+        if canon_actual and canon_destino not in _PEDIDO_TRANSICIONES.get(canon_actual, set()):
             raise ServiceError("Transicion de pedido no valida", status_code=422)
 
         pedido.id_estado_pedido = estado.id_estado_pedido
         pedido.estado = estado
-        if codigo_estado == "CONFIRMADO" and not pedido.confirmado_en:
+        if canon_destino == "CONFIRMADO" and not pedido.confirmado_en:
             pedido.confirmado_en = datetime.utcnow()
         db.session.add(
             HistorialEstadoPedido(
@@ -177,7 +187,21 @@ class PedidoService:
         return pedido
 
     def _estado_por_codigo(self, codigo: str) -> EstadoPedido:
-        estado = EstadoPedido.query.filter_by(codigo=codigo).first()
+        _, aliases = self._resolver_codigo(codigo)
+        estado = (
+            EstadoPedido.query.filter(func.upper(EstadoPedido.codigo).in_({alias.upper() for alias in aliases}))
+            .first()
+        )
         if not estado:
             raise NotFoundError(f"Estado {codigo} no configurado")
         return estado
+
+    def _resolver_codigo(self, codigo: str | None) -> tuple[str, set[str]]:
+        if not codigo:
+            return "", set()
+        codigo_upper = codigo.upper()
+        for canon, aliases in _ESTADO_ALIASES.items():
+            alias_upper = {alias.upper() for alias in aliases}
+            if codigo_upper in alias_upper:
+                return canon, {alias.upper() for alias in aliases}
+        return codigo_upper, {codigo_upper}

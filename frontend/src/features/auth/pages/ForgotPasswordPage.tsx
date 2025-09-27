@@ -1,4 +1,5 @@
-﻿import { FormEvent, useState } from "react";
+﻿import { useState } from "react";
+import type { FormEvent } from "react";
 
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
@@ -13,7 +14,8 @@ export default function ForgotPasswordPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "").trim();
+    const emailField = formData.get("email");
+    const email = typeof emailField === "string" ? emailField.trim() : "";
     setLoading(true);
     setMessage(null);
     setError(null);

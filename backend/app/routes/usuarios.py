@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
-from ..schemas.usuario import UsuarioSchema, UsuarioUpdateSchema
+from ..schemas.usuario import PerfilUpdateSchema, UsuarioSchema, UsuarioUpdateSchema
 from ..services import ServiceError
 from ..services.usuario_service import UsuarioService
 from ..utils.decorators import admin_required
@@ -35,6 +35,15 @@ def list_usuarios():
 def obtener_perfil():
     user_id = get_jwt_identity()
     usuario = _usuario_service.get_by_id(user_id)
+    return jsonify({"usuario": _usuario_schema.dump(usuario)})
+
+
+@bp.patch("/me")
+@jwt_required()
+def actualizar_perfil():
+    payload = PerfilUpdateSchema(partial=True).load(request.get_json() or {})
+    usuario = _usuario_service.get_by_id(get_jwt_identity())
+    usuario = _usuario_service.actualizar_perfil(usuario, payload)
     return jsonify({"usuario": _usuario_schema.dump(usuario)})
 
 

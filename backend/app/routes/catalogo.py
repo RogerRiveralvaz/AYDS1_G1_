@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
+from ..models.categoria import Categoria
+from ..schemas.categoria import CategoriaSchema
 from ..schemas.producto import ProductoSchema
 from ..schemas.tienda import TiendaDetalleSchema, TiendaPublicSchema
 from ..services.catalogo_service import CatalogoService
@@ -13,6 +15,7 @@ _catalogo_service = CatalogoService()
 _tiendas_schema = TiendaPublicSchema(many=True)
 _tienda_detalle_schema = TiendaDetalleSchema()
 _productos_schema = ProductoSchema(many=True)
+_categorias_schema = CategoriaSchema(many=True)
 
 
 @bp.get("/tiendas")
@@ -41,9 +44,6 @@ def detalle_tienda(tienda_id: int):
         return jsonify({"message": "Tienda no encontrada"}), 404
 
     data = _tienda_detalle_schema.dump(tienda)
-    data["productos"] = {}
-    for categoria, productos in tienda.productos_catalogo.items():
-        data["productos"][categoria] = _productos_schema.dump(productos)
     return jsonify({"tienda": data})
 
 
@@ -59,3 +59,9 @@ def buscar_productos():
     productos = _catalogo_service.buscar_productos(texto, categoria_id=categoria_id, tienda_id=tienda_id)
     productos_pag, meta = paginate_sequence(productos, page, per_page)
     return jsonify({"productos": _productos_schema.dump(productos_pag), "meta": meta})
+
+
+@bp.get("/categorias")
+def listar_categorias():
+    categorias = Categoria.query.filter_by(activo=True).order_by(Categoria.nombre).all()
+    return jsonify({"categorias": _categorias_schema.dump(categorias)})

@@ -1,5 +1,6 @@
 from marshmallow import Schema, fields, validate
 
+from .producto import ProductoSchema
 from .usuario import DireccionInputSchema
 
 
@@ -48,7 +49,12 @@ class TiendaOwnerSchema(TiendaPublicSchema):
 
 
 class TiendaDetalleSchema(TiendaPublicSchema):
-    productos = fields.List(fields.Dict(), dump_only=True)
+    productos = fields.Dict(
+        keys=fields.Str(),
+        values=fields.List(fields.Nested(ProductoSchema)),
+        attribute="productos_catalogo",
+        dump_only=True,
+    )
     reportes = fields.Dict(dump_only=True)
 
 

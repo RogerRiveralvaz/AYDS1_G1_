@@ -6,7 +6,7 @@
 } as const;
 
 export const PEDIDO_ESTADOS = ["PENDIENTE", "CONFIRMADO", "EN_CAMINO", "ENTREGADO"] as const;
-export const ENTREGA_ESTADOS = ["ASIGNADA", "ACEPTADA", "EN_CAMINO", "ENTREGADA"] as const;
+export const ENTREGA_ESTADOS = ["ASIGNADA", "ACEPTADA", "EN_CAMINO", "ENTREGADA", "CANCELADA"] as const;
 
 export const STORAGE_KEYS = {
   AUTH: "ayd-auth",

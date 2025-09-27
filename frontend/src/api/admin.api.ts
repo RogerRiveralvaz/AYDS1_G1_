@@ -1,14 +1,37 @@
 import { apiClient } from "./client";
-import type { AdminResumen, PaginationMeta, TiendaAdmin } from "./types";
+import type { AdminResumen, PaginationMeta, TiendaAdmin, RepartidorAdmin, ClienteAdmin } from "./types";
 
-export interface AdminTiendasParams {
+export interface AdminPaginationParams extends Record<string, unknown> {
   page?: number;
   per_page?: number;
+}
+
+export interface AdminTiendasParams extends AdminPaginationParams {
   estado?: string;
+  activo?: boolean;
 }
 
 export interface AdminTiendasResponse {
   tiendas: TiendaAdmin[];
+  meta: PaginationMeta;
+}
+
+export interface AdminRepartidoresParams extends AdminPaginationParams {
+  estado?: string;
+  activo?: boolean;
+}
+
+export interface AdminRepartidoresResponse {
+  repartidores: RepartidorAdmin[];
+  meta: PaginationMeta;
+}
+
+export interface AdminClientesParams extends AdminPaginationParams {
+  activo?: boolean;
+}
+
+export interface AdminClientesResponse {
+  clientes: ClienteAdmin[];
   meta: PaginationMeta;
 }
 
@@ -17,9 +40,19 @@ export async function fetchAdminResumen() {
   return data.resumen;
 }
 
+function mapBooleanParam(value: boolean | undefined) {
+  if (typeof value === "boolean") {
+    return value ? "1" : "0";
+  }
+  return undefined;
+}
+
 export async function fetchAdminTiendas(params: AdminTiendasParams = {}) {
   const { data } = await apiClient.get<AdminTiendasResponse>("/admin/tiendas", {
-    params,
+    params: {
+      ...params,
+      activo: mapBooleanParam(params.activo),
+    },
   });
   return data;
 }
@@ -50,4 +83,64 @@ export interface UpdateAdminTiendaEstadoParams {
 export async function updateAdminTiendaEstado({ id, codigo }: UpdateAdminTiendaEstadoParams) {
   const { data } = await apiClient.patch<{ tienda: TiendaAdmin }>(`/admin/tiendas/${id}`, { codigo });
   return data.tienda;
+}
+
+export async function updateAdminTiendaActivo(id: number, activo: boolean) {
+  const { data } = await apiClient.patch<{ tienda: TiendaAdmin }>(`/admin/tiendas/${id}/activo`, { activo });
+  return data.tienda;
+}
+
+export async function deleteAdminTienda(id: number) {
+  const { data } = await apiClient.delete<{ tienda: TiendaAdmin }>(`/admin/tiendas/${id}`);
+  return data.tienda;
+}
+
+export async function fetchAdminRepartidores(params: AdminRepartidoresParams = {}) {
+  const { data } = await apiClient.get<AdminRepartidoresResponse>("/admin/repartidores", {
+    params: {
+      ...params,
+      activo: mapBooleanParam(params.activo),
+    },
+  });
+  return data;
+}
+
+export async function updateAdminRepartidorEstado(id: number, codigo: string) {
+  const { data } = await apiClient.patch<{ repartidor: RepartidorAdmin }>(`/admin/repartidores/${id}`, {
+    codigo,
+  });
+  return data.repartidor;
+}
+
+export async function updateAdminRepartidorActivo(id: number, activo: boolean) {
+  const { data } = await apiClient.patch<{ repartidor: RepartidorAdmin }>(
+    `/admin/repartidores/${id}/activo`,
+    { activo },
+  );
+  return data.repartidor;
+}
+
+export async function deleteAdminRepartidor(id: number) {
+  const { data } = await apiClient.delete<{ repartidor: RepartidorAdmin }>(`/admin/repartidores/${id}`);
+  return data.repartidor;
+}
+
+export async function fetchAdminClientes(params: AdminClientesParams = {}) {
+  const { data } = await apiClient.get<AdminClientesResponse>("/admin/clientes", {
+    params: {
+      ...params,
+      activo: mapBooleanParam(params.activo),
+    },
+  });
+  return data;
+}
+
+export async function updateAdminClienteActivo(id: number, activo: boolean) {
+  const { data } = await apiClient.patch<{ cliente: ClienteAdmin }>(`/admin/clientes/${id}`, { activo });
+  return data.cliente;
+}
+
+export async function deleteAdminCliente(id: number) {
+  const { data } = await apiClient.delete<{ cliente: ClienteAdmin }>(`/admin/clientes/${id}`);
+  return data.cliente;
 }

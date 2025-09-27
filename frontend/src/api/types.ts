@@ -6,6 +6,11 @@ export type PaginationMeta = {
   total: number;
 };
 
+export type PaginatedResponse<T> = {
+  data: T[];
+  meta: PaginationMeta;
+};
+
 export interface Direccion {
   etiqueta?: string | null;
   linea1: string;
@@ -24,9 +29,44 @@ export interface HorarioTienda {
   cerrado: boolean;
 }
 
+export interface ClienteDireccion extends Direccion {
+  id_direccion: number;
+  principal?: boolean;
+}
+
+export interface ClientePedidoTiendaResumen {
+  id_tienda?: number;
+  nombre?: string | null;
+  razon_social?: string | null;
+}
+
+export interface ClientePedidoHistorial {
+  id_pedido: number;
+  total_q: number;
+  estado: string;
+  creado_en: string;
+  tienda?: ClientePedidoTiendaResumen | null;
+}
+
+export interface ClienteAdmin {
+  id_cliente: number;
+  id_usuario: number;
+  nombres: string;
+  apellidos: string;
+  nombre?: string;
+  email: string;
+  correo?: string;
+  telefono?: string | null;
+  activo: boolean;
+  pedidos_totales: number;
+  historial_pedidos?: ClientePedidoHistorial[];
+  direcciones?: ClienteDireccion[];
+}
+
 export interface TiendaAdmin {
   id_tienda: number;
   nombre: string;
+  razon_social: string;
   logo?: string | null;
   categoria?: string | null;
   direccion?: string | null;
@@ -39,6 +79,7 @@ export interface TiendaAdmin {
   telefono: string;
   cuenta_bancaria: string;
   estado_aprobacion: string;
+  estado_aprobacion_nombre?: string | null;
   direccion_detalle?: Direccion | null;
   activo: boolean;
   aprobado_en?: string | null;
@@ -47,12 +88,27 @@ export interface TiendaAdmin {
   actualizado_en?: string;
 }
 
+export interface AdminResumenPedidoPorDia {
+  fecha: string;
+  total: number;
+}
+
+export interface AdminResumenTopTienda {
+  tienda: string;
+  ingresos: number | string;
+}
+
 export interface AdminResumen {
   pedidos_hoy: number;
-  ingresos_totales: string;
+  pedidos_totales: number;
+  ingresos_totales: number | string;
   tiendas_activas: number;
-  productos_top: Array<{ producto: string; cantidad: number }>;
-  tiendas_por_estado: Array<{ estado: string; total: number }>;
+  repartidores_activos: number;
+  tiendas_pendientes: number;
+  productos_top?: Array<{ producto: string; cantidad: number }>;
+  tiendas_por_estado?: Array<{ estado: string; total: number }>;
+  pedidos_por_dia?: AdminResumenPedidoPorDia[];
+  top_tiendas?: AdminResumenTopTienda[];
 }
 
 export interface UsuarioResumen {
@@ -79,4 +135,5 @@ export interface RepartidorAdmin {
   estado_aprobacion: string;
   activo: boolean;
   usuario: UsuarioResumen;
+  updated_at?: string | null;
 }

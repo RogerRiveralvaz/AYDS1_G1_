@@ -14,6 +14,12 @@ class DireccionInputSchema(Schema):
     ubicacion = fields.Str(load_default=None)
 
 
+class DireccionSchema(DireccionInputSchema):
+    id_direccion = fields.Int(dump_only=True)
+    creado_en = fields.DateTime(dump_only=True)
+    es_predeterminada = fields.Bool(dump_only=True)
+
+
 class RepartidorInputSchema(Schema):
     dpi = fields.Str(required=True, validate=validate.Length(min=6, max=32))
     licencia_numero = fields.Str(load_default=None, validate=validate.Length(max=32))
@@ -50,6 +56,15 @@ class UsuarioRegisterSchema(Schema):
     tienda = fields.Nested(TiendaInputSchema, load_default=None)
 
 
+class PerfilUpdateSchema(Schema):
+    nombres = fields.Str(validate=validate.Length(min=2, max=80))
+    apellidos = fields.Str(validate=validate.Length(min=2, max=80))
+    genero = fields.Str(validate=validate.OneOf(["M", "F", "O"]))
+    telefono = fields.Str(validate=validate.Length(max=32))
+    fecha_nacimiento = fields.Date()
+    url_foto = fields.URL()
+
+
 class LoginSchema(Schema):
     email = fields.Email(required=True)
     password = fields.Str(required=True, validate=validate.Length(min=6))
@@ -76,6 +91,8 @@ class UsuarioSchema(Schema):
     url_foto = fields.URL(dump_only=True, allow_none=True)
     activo = fields.Bool(dump_only=True)
     roles = fields.Method("get_roles", dump_only=True)
+    direccion_defecto_id = fields.Int(attribute="perfil_cliente.id_direccion_defecto", dump_only=True)
+    direcciones = fields.List(fields.Nested(DireccionSchema), dump_only=True)
 
     class Meta:
         ordered = True
