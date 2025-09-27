@@ -34,15 +34,16 @@ export async function login(payload: LoginPayload) {
   };
 }
 
-export async function register(payload: RegisterPayload) {
-  const { data } = await apiClient.post<RegisterApiResponse>("/auth/register", payload);
-  const { codigo_verificacion: verificationCode, ...usuario } = data.usuario;
+// NUEVO: permite JSON o FormData; si es FormData, usa multipart
+export async function register(payload: Record<string, unknown> | FormData, isMultipart = false) {
+  const headers = isMultipart ? { "Content-Type": "multipart/form-data" } : undefined;
+  const { data } = await apiClient.post<RegisterApiResponse>("/auth/register", payload, { headers });
   return {
     message: data.message,
-    user: mapUsuario(usuario),
-    verificationCode,
+    user: mapUsuario(data.usuario),
   };
 }
+
 
 export async function verifyEmail(payload: VerifyPayload) {
   const { data } = await apiClient.post<VerifyApiResponse>("/auth/verify-email", payload);
