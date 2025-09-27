@@ -1,0 +1,15 @@
+﻿@import "./styles/tailwind.css";
+@import "leaflet/dist/leaflet.css";
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+}
+
+:focus-visible {
+  outline: 2px solid hsl(221, 83%, 53%);
+  outline-offset: 2px;
+}
