@@ -100,6 +100,7 @@ const router = createBrowserRouter([
     element: withSuspense(withRole(["TIENDA"], <TiendaLayout />)),
     children: [
       { index: true, element: withSuspense(<TiendaPanelPage />) },
+      { path: "panel", element: withSuspense(<TiendaPanelPage />) },
       { path: "productos", element: withSuspense(<TiendaProductosPage />) },
       { path: "productos/nuevo", element: withSuspense(<TiendaProductoFormPage />) },
       { path: "productos/:id/editar", element: withSuspense(<TiendaProductoFormPage />) },

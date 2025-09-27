@@ -7,9 +7,17 @@
       productos: (id: number, filters?: Record<string, unknown>) =>
         ["catalogo", "tiendas", id, "productos", { filters: filters ?? {} }] as const,
     },
+    categorias: ["catalogo", "categorias"] as const,
   },
   carrito: {
     root: ["carrito"] as const,
+  },
+  perfil: {
+    me: ["perfil", "me"] as const,
+  },
+  direcciones: {
+    root: ["direcciones"] as const,
+    detail: (id: number) => ["direcciones", "detail", id] as const,
   },
   pedidos: {
     root: ["pedidos"] as const,
@@ -35,6 +43,21 @@
     clientes: {
       root: ["admin", "clientes"] as const,
       list: (filters?: Record<string, unknown>) => ["admin", "clientes", { filters: filters ?? {} }] as const,
+    },
+  },
+  tienda: {
+    me: ["tienda", "mi"] as const,
+    dashboard: ["tienda", "dashboard"] as const,
+    productos: {
+      list: () => ["tienda", "productos"] as const,
+      detail: (id: number | string) => ["tienda", "productos", "detail", id] as const,
+    },
+    pedidos: {
+      list: (filters?: Record<string, unknown>) => ["tienda", "pedidos", { filters: filters ?? {} }] as const,
+    },
+    tarifa: ["tienda", "tarifa"] as const,
+    repartidores: {
+      list: () => ["tienda", "repartidores"] as const,
     },
   },
 } as const;

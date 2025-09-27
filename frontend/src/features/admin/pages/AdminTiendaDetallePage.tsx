@@ -1,33 +1,23 @@
-﻿import { useCallback, useMemo, useState } from "react";
+﻿
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { ConfirmDialog } from "../../../components/ui/ConfirmDialog";
 import { Skeleton } from "../../../components/ui/Skeleton";
-import { useActualizarEstadoTienda, useAdminTienda } from "../../../hooks/useAdminTienda";
+import {
+  useActualizarEstadoTienda,
+  useActualizarActivoTienda,
+  useEliminarTienda,
+  useAdminTienda,
+} from "../../../hooks/useAdminTienda";
 import { formatDateTime } from "../../../utils/format";
 import type { HorarioTienda, TiendaAdmin } from "../../../api/types";
 
-const dayLabels = [
-  "Lunes",
-  "Martes",
-  "Miércoles",
-  "Jueves",
-  "Viernes",
-  "Sábado",
-  "Domingo",
-];
+const dayLabels = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
 
-function estadoVariant(estado: string) {
-  if (estado === "APROBADO") {
-    return "success" as const;
-  }
-  if (estado === "RECHAZADO") {
-    return "danger" as const;
-  }
-  return "warning" as const;
-}
+type PendingAction = "aprobar" | "rechazar" | "activar" | "suspender" | "eliminar" | null;
 
 export default function AdminTiendaDetallePage() {
   const { id } = useParams();
@@ -41,22 +31,38 @@ export default function AdminTiendaDetallePage() {
 
   const { data: tienda, isPending, isError, refetch } = useAdminTienda(tiendaId);
   const actualizarEstado = useActualizarEstadoTienda();
-  const [nextEstado, setNextEstado] = useState<"APROBADO" | "RECHAZADO" | null>(null);
+  const actualizarActivo = useActualizarActivoTienda();
+  const eliminarTienda = useEliminarTienda();
+  const [accion, setAccion] = useState<PendingAction>(null);
 
   const horarios = useMemo<HorarioTienda[]>(() => tienda?.horarios ?? tienda?.horario ?? [], [tienda]);
   const direccion = useMemo(() => formatDireccion(tienda), [tienda]);
 
-  const handleConfirm = useCallback(async () => {
-    if (!tiendaId || !nextEstado) {
+  const handleConfirm = async () => {
+    if (!tiendaId || !accion) {
+      setAccion(null);
       return;
     }
     try {
-      await actualizarEstado.mutateAsync({ id: tiendaId, codigo: nextEstado });
-      setNextEstado(null);
+      if (accion === "aprobar") {
+        await actualizarEstado.mutateAsync({ id: tiendaId, codigo: "APPROVED" });
+      } else if (accion === "rechazar") {
+        await actualizarEstado.mutateAsync({ id: tiendaId, codigo: "REJECTED" });
+      } else if (accion === "activar") {
+        await actualizarActivo.mutateAsync({ id: tiendaId, activo: true });
+      } else if (accion === "suspender") {
+        await actualizarActivo.mutateAsync({ id: tiendaId, activo: false });
+      } else if (accion === "eliminar") {
+        await eliminarTienda.mutateAsync(tiendaId);
+      }
+      setAccion(null);
     } catch (error) {
       console.error(error);
     }
-  }, [actualizarEstado, nextEstado, tiendaId]);
+  };
+
+  const confirmLoading =
+    actualizarEstado.isPending || actualizarActivo.isPending || eliminarTienda.isPending;
 
   const content = useMemo(() => {
     if (isPending) {
@@ -70,37 +76,35 @@ export default function AdminTiendaDetallePage() {
     }
     return (
       <div className="space-y-6">
-        <InfoCards tienda={tienda} direccion={direccion} />
+        <HeaderSection
+          tienda={tienda}
+          direccion={direccion}
+          onApprove={() => setAccion("aprobar")}
+          onReject={() => setAccion("rechazar")}
+          onActivate={() => setAccion("activar")}
+          onSuspend={() => setAccion("suspender")}
+          onDelete={() => setAccion("eliminar")}
+          loading={confirmLoading}
+        />
+        <DetailCards tienda={tienda} direccion={direccion} />
         <HorariosSection horarios={horarios} />
       </div>
     );
-  }, [direccion, horarios, isError, isPending, refetch, tienda]);
+  }, [confirmLoading, direccion, horarios, isError, isPending, refetch, tienda]);
 
   return (
     <section className="space-y-6">
-      <HeaderSection
-        tienda={tienda}
-        id={id}
-        isSubmitting={actualizarEstado.isPending}
-        onApprove={() => setNextEstado("APROBADO")}
-        onReject={() => setNextEstado("RECHAZADO")}
-      />
-
       {content}
 
       <ConfirmDialog
-        isOpen={nextEstado !== null}
-        title={nextEstado === "APROBADO" ? "Aprobar tienda" : "Rechazar tienda"}
-        description={
-          nextEstado === "APROBADO"
-            ? "La tienda pasará a estado aprobado y podrá operar en el catálogo de forma inmediata."
-            : "La tienda será marcada como rechazada y deberá corregir su información para volver a solicitar la aprobación."
-        }
-        confirmText={nextEstado === "APROBADO" ? "Aprobar" : "Rechazar"}
+        isOpen={accion !== null}
+        title={getConfirmTitle(accion)}
+        description={getConfirmDescription(accion)}
+        confirmText={getConfirmLabel(accion)}
         cancelText="Cancelar"
-        variant={nextEstado === "RECHAZADO" ? "danger" : "default"}
-        isSubmitting={actualizarEstado.isPending}
-        onCancel={() => setNextEstado(null)}
+        variant={accion === "rechazar" || accion === "eliminar" ? "danger" : "default"}
+        isSubmitting={confirmLoading}
+        onCancel={() => setAccion(null)}
         onConfirm={handleConfirm}
       />
     </section>
@@ -109,176 +113,102 @@ export default function AdminTiendaDetallePage() {
 
 type HeaderSectionProps = Readonly<{
   tienda?: TiendaAdmin;
-  id?: string;
+  direccion: string;
   onApprove: () => void;
   onReject: () => void;
-  isSubmitting: boolean;
+  onActivate: () => void;
+  onSuspend: () => void;
+  onDelete: () => void;
+  loading: boolean;
 }>;
 
-function HeaderSection({ tienda, id, onApprove, onReject, isSubmitting }: HeaderSectionProps) {
-  const showApprove = Boolean(tienda && tienda.estado_aprobacion !== "APROBADO");
-  const showReject = Boolean(tienda && tienda.estado_aprobacion !== "RECHAZADO");
+function HeaderSection({ tienda, direccion, onApprove, onReject, onActivate, onSuspend, onDelete, loading }: HeaderSectionProps) {
+  if (!tienda) {
+    return null;
+  }
+  const estado = tienda.estado_aprobacion;
+  const puedeAprobar = estado !== "APPROVED";
+  const puedeRechazar = estado !== "REJECTED";
+  const activa = tienda.activo;
 
   return (
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <header className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:flex-row md:items-start md:justify-between">
       <div className="space-y-2">
-        <p className="text-xs uppercase tracking-wide text-blue-600">Tienda #{id}</p>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-          {tienda?.nombre ?? "Detalle de tienda"}
-        </h1>
-        <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-          Revisa la información declarada por la tienda, valida documentación clave y controla el estado de aprobación.
-        </p>
-        {tienda ? <HeaderBadges tienda={tienda} /> : null}
+        <p className="text-xs uppercase tracking-wide text-blue-600">Tienda #{tienda.id_tienda}</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{tienda.razon_social}</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-300">{direccion || "Sin direccion registrada"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={estadoVariant(estado)}>{estado}</Badge>
+          <Badge variant={activa ? "success" : "danger"}>{activa ? "Activa" : "Inactiva"}</Badge>
+        </div>
       </div>
-      {tienda ? (
-        <HeaderActions
-          showApprove={showApprove}
-          showReject={showReject}
-          onApprove={onApprove}
-          onReject={onReject}
-          isSubmitting={isSubmitting}
-        />
-      ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {puedeAprobar ? (
+          <Button size="sm" variant="outline" onClick={onApprove} disabled={loading}>
+            Aprobar
+          </Button>
+        ) : null}
+        {puedeRechazar ? (
+          <Button size="sm" variant="ghost" onClick={onReject} disabled={loading}>
+            Rechazar
+          </Button>
+        ) : null}
+        {activa ? (
+          <Button size="sm" variant="ghost" onClick={onSuspend} disabled={loading}>
+            Suspender
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" onClick={onActivate} disabled={loading}>
+            Activar
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={onDelete} disabled={loading}>
+          Eliminar
+        </Button>
+      </div>
     </header>
   );
 }
 
-type HeaderBadgesProps = Readonly<{ tienda: TiendaAdmin }>;
+type DetailCardsProps = Readonly<{ tienda: TiendaAdmin; direccion: string }>;
 
-function HeaderBadges({ tienda }: HeaderBadgesProps) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 pt-1">
-      <Badge variant={estadoVariant(tienda.estado_aprobacion)}>{tienda.estado_aprobacion}</Badge>
-      <Badge variant={tienda.activo ? "success" : "danger"}>{tienda.activo ? "Activa" : "Inactiva"}</Badge>
-      {typeof tienda.abierto === "boolean" ? (
-        <Badge variant={tienda.abierto ? "info" : "warning"}>
-          {tienda.abierto ? "Horario activo" : "Fuera de horario"}
-        </Badge>
-      ) : null}
-    </div>
-  );
-}
-
-type HeaderActionsProps = Readonly<{
-  showApprove: boolean;
-  showReject: boolean;
-  onApprove: () => void;
-  onReject: () => void;
-  isSubmitting: boolean;
-}>;
-
-function HeaderActions({ showApprove, showReject, onApprove, onReject, isSubmitting }: HeaderActionsProps) {
-  if (!showApprove && !showReject) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-3">
-      {showApprove ? (
-        <Button onClick={onApprove} disabled={isSubmitting}>
-          Aprobar tienda
-        </Button>
-      ) : null}
-      {showReject ? (
-        <Button variant="outline" onClick={onReject} disabled={isSubmitting}>
-          Rechazar
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-function LoadingState() {
-  const skeletonKeys = ["tienda-general", "tienda-estado", "tienda-direccion"] as const;
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      {skeletonKeys.map((key) => (
-        <div
-          key={key}
-          className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
-        >
-          <Skeleton className="h-5 w-1/2" />
-          <Skeleton className="mt-4 h-4 w-full" />
-          <Skeleton className="mt-2 h-4 w-3/4" />
-          <Skeleton className="mt-2 h-4 w-2/3" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-type ErrorStateProps = Readonly<{ onRetry: () => void }>;
-
-function ErrorState({ onRetry }: ErrorStateProps) {
-  return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-      <p>Ocurrió un error al cargar la tienda.</p>
-      <Button className="mt-4" variant="primary" onClick={onRetry}>
-        Reintentar
-      </Button>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-      No encontramos información para esta tienda.
-    </div>
-  );
-}
-
-type InfoCardsProps = Readonly<{ tienda: TiendaAdmin; direccion: string }>;
-
-function InfoCards({ tienda, direccion }: InfoCardsProps) {
+function DetailCards({ tienda, direccion }: DetailCardsProps) {
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Datos generales
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Datos generales</h2>
         <dl className="mt-4 space-y-3 text-sm">
-          <InfoRow label="Razón social" value={tienda.nombre} />
-          <InfoRow label="Categoría" value={tienda.categoria ?? "Sin categoría"} />
+          <InfoRow label="Razon social" value={tienda.razon_social} />
+          <InfoRow label="Categoria" value={tienda.categoria ?? "Sin categoria"} />
           <InfoRow label="Correo de contacto" value={tienda.email} />
-          <InfoRow label="Teléfono" value={tienda.telefono} />
-        </dl>
-      </div>
-
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Estado y validación
-        </h2>
-        <dl className="mt-4 space-y-3 text-sm">
-          <InfoRow label="Estado de aprobación" value={tienda.estado_aprobacion} />
+          <InfoRow label="Telefono" value={tienda.telefono} />
           <InfoRow label="Cuenta bancaria" value={tienda.cuenta_bancaria} />
-          <InfoRow label="Aprobado en" value={tienda.aprobado_en ? formatDateTime(tienda.aprobado_en) : "Pendiente"} />
-          <InfoRow
-            label="Última actualización"
-            value={tienda.actualizado_en ? formatDateTime(tienda.actualizado_en) : "Sin datos"}
-          />
         </dl>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Dirección y cobertura
-        </h2>
-        <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">{direccion}</p>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Estado y seguimiento</h2>
+        <dl className="mt-4 space-y-3 text-sm">
+          <InfoRow label="Estado" value={tienda.estado_aprobacion} />
+          <InfoRow label="Aprobado por" value={tienda.aprobado_por ? String(tienda.aprobado_por) : "Sin registro"} />
+          <InfoRow label="Aprobado en" value={tienda.aprobado_en ? formatDateTime(tienda.aprobado_en) : "Pendiente"} />
+          <InfoRow label="Actualizado" value={tienda.actualizado_en ? formatDateTime(tienda.actualizado_en) : "Sin registro"} />
+        </dl>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cobertura y estado</h2>
+        <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">{direccion || "Sin direccion"}</p>
         <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-          <SummaryCard label="Promoción activa" value={tienda.promocion_activa ? "Sí" : "No"} />
-          <SummaryCard label="Ciudad" value={tienda.ciudad ?? "Por definir"} />
+          <SummaryCard label="Promocion activa" value={tienda.promocion_activa ? "Si" : "No"} />
+          <SummaryCard label="Ciudad" value={tienda.ciudad ?? "Sin dato"} />
         </div>
       </div>
     </div>
   );
 }
 
-type HorariosSectionProps = Readonly<{ horarios: HorarioTienda[] }>;
-
-function HorariosSection({ horarios }: HorariosSectionProps) {
+function HorariosSection({ horarios }: { horarios: HorarioTienda[] }) {
   if (!horarios || horarios.length === 0) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
@@ -286,16 +216,13 @@ function HorariosSection({ horarios }: HorariosSectionProps) {
       </div>
     );
   }
-
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        Horarios declarados
-      </h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Horarios declarados</h2>
       <ul className="mt-4 divide-y divide-slate-200 text-sm dark:divide-slate-800">
         {horarios.map((horario) => {
-          const dia = dayLabels[horario.dia_semana] ?? `Día ${horario.dia_semana}`;
-          const key = `${horario.dia_semana}-${horario.hora_apertura ?? "-"}-${horario.hora_cierre ?? "-"}-${horario.cerrado ? 1 : 0}`;
+          const dia = dayLabels[horario.dia_semana] ?? `Dia ${horario.dia_semana}`;
+          const key = `${horario.dia_semana}-${horario.hora_apertura ?? 'inicio'}-${horario.hora_cierre ?? 'fin'}-${horario.cerrado ? 1 : 0}`;
           return (
             <li key={key} className="flex items-center justify-between py-2">
               <span className="text-slate-600 dark:text-slate-300">{dia}</span>
@@ -308,9 +235,30 @@ function HorariosSection({ horarios }: HorariosSectionProps) {
   );
 }
 
-type InfoRowProps = Readonly<{ label: string; value: string }>;
+function LoadingState() {
+  return <Skeleton className="h-64 w-full" />;
+}
 
-function InfoRow({ label, value }: InfoRowProps) {
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+      <p>Error al cargar la informacion de la tienda.</p>
+      <Button className="mt-3" variant="outline" onClick={onRetry}>
+        Reintentar
+      </Button>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+      No encontramos informacion para esta tienda.
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
@@ -319,9 +267,7 @@ function InfoRow({ label, value }: InfoRowProps) {
   );
 }
 
-type SummaryCardProps = Readonly<{ label: string; value: string }>;
-
-function SummaryCard({ label, value }: SummaryCardProps) {
+function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
       <p className="font-semibold text-slate-700 dark:text-slate-200">{label}</p>
@@ -335,10 +281,10 @@ function formatDireccion(tienda?: TiendaAdmin) {
     return "";
   }
   if (tienda.direccion_detalle) {
-    const { linea1, linea2, ciudad, estado: departamento, pais, codigo_postal } = tienda.direccion_detalle;
-    return [linea1, linea2, ciudad, departamento, codigo_postal, pais].filter(Boolean).join(", ");
+    const { linea1, linea2, ciudad, estado, pais, codigo_postal } = tienda.direccion_detalle;
+    return [linea1, linea2, ciudad, estado, codigo_postal, pais].filter(Boolean).join(", ");
   }
-  return tienda.direccion ?? "Sin dirección registrada";
+  return tienda.direccion ?? "";
 }
 
 function getHorarioLabel(horario: HorarioTienda) {
@@ -349,4 +295,68 @@ function getHorarioLabel(horario: HorarioTienda) {
     return `${horario.hora_apertura} - ${horario.hora_cierre}`;
   }
   return "Sin horario definido";
+}
+
+function getConfirmTitle(accion: PendingAction) {
+  switch (accion) {
+    case "aprobar":
+      return "Aprobar tienda";
+    case "rechazar":
+      return "Rechazar tienda";
+    case "activar":
+      return "Activar tienda";
+    case "suspender":
+      return "Suspender tienda";
+    case "eliminar":
+      return "Eliminar tienda";
+    default:
+      return "";
+  }
+}
+
+function getConfirmDescription(accion: PendingAction) {
+  switch (accion) {
+    case "aprobar":
+      return "La tienda quedara aprobada y aparecera en el catalogo.";
+    case "rechazar":
+      return "La tienda sera marcada como rechazada hasta nueva revision.";
+    case "activar":
+      return "La tienda podra operar nuevamente.";
+    case "suspender":
+      return "La tienda sera suspendida temporalmente.";
+    case "eliminar":
+      return "La tienda se desactivara y no aparecera para los clientes.";
+    default:
+      return "";
+  }
+}
+
+function getConfirmLabel(accion: PendingAction) {
+  switch (accion) {
+    case "aprobar":
+      return "Aprobar";
+    case "rechazar":
+      return "Rechazar";
+    case "activar":
+      return "Activar";
+    case "suspender":
+      return "Suspender";
+    case "eliminar":
+      return "Eliminar";
+    default:
+      return "Confirmar";
+  }
+}
+
+function estadoVariant(estado: string) {
+  if (estado === "APROBADO") {
+    return "success" as const;
+  }
+  if (estado === "RECHAZADO") {
+    return "danger" as const;
+  }
+  if (estado === "SUSPENDED") {
+    return "warning" as const;
+  }
+  return "info" as const;
 }

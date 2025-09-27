@@ -14,7 +14,7 @@ import { Skeleton } from "../ui/Skeleton";
 
 export interface DataTableProps<TData> {
   data: TData[];
-  columns: ColumnDef<TData, any>[];
+  columns: ColumnDef<TData, unknown>[];
   loading?: boolean;
   emptyState?: React.ReactNode;
   manualSorting?: boolean;

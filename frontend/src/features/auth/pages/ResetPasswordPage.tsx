@@ -1,5 +1,6 @@
-﻿import { FormEvent, useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import type { FormEvent } from "react";
 
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
@@ -17,9 +18,12 @@ export default function ResetPasswordPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const password = String(formData.get("password") ?? "");
-    const confirm = String(formData.get("confirm") ?? "");
-    const email = String(formData.get("email") ?? "").trim();
+  const passwordField = formData.get("password");
+  const confirmField = formData.get("confirm");
+  const emailField = formData.get("email");
+  const password = typeof passwordField === "string" ? passwordField : "";
+  const confirm = typeof confirmField === "string" ? confirmField : "";
+  const email = typeof emailField === "string" ? emailField.trim() : "";
 
     if (password !== confirm) {
       setError("Las contrasenas no coinciden");

@@ -1,5 +1,6 @@
-﻿import { FormEvent, useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { FormEvent } from "react";
 
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
@@ -15,8 +16,10 @@ export default function VerifyEmailPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "").trim();
-    const code = String(formData.get("code") ?? "").trim();
+  const emailField = formData.get("email");
+  const codeField = formData.get("code");
+  const email = typeof emailField === "string" ? emailField.trim() : "";
+  const code = typeof codeField === "string" ? codeField.trim() : "";
 
     setLoading(true);
     setError(null);

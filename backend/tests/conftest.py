@@ -77,6 +77,7 @@ def _seed_defaults():
         EstadoEntrega(id_estado_entrega=2, codigo="ACEPTADA", nombre="Aceptada"),
         EstadoEntrega(id_estado_entrega=3, codigo="EN_CAMINO", nombre="En camino"),
         EstadoEntrega(id_estado_entrega=4, codigo="ENTREGADA", nombre="Entregada"),
+        EstadoEntrega(id_estado_entrega=5, codigo="CANCELADA", nombre="Cancelada"),
     ]
     tarifa_global = TarifaEnvio(
         ambito=TarifaAmbitoEnum.GLOBAL,

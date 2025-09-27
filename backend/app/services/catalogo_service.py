@@ -27,7 +27,10 @@ class CatalogoService:
                 joinedload(Tienda.categoria),
             )
             .join(Tienda.estado_aprobacion)
-            .filter(Tienda.activo.is_(True), EstadoAprobacion.codigo == "APROBADO")
+            .filter(
+                Tienda.activo.is_(True),
+                EstadoAprobacion.codigo.in_(["APROBADO", "APPROVED"]),
+            )
         )
 
         if categoria_id:
@@ -64,7 +67,7 @@ class CatalogoService:
             .filter(
                 Tienda.id_tienda == tienda_id,
                 Tienda.activo.is_(True),
-                EstadoAprobacion.codigo == "APROBADO",
+                EstadoAprobacion.codigo.in_(["APROBADO", "APPROVED"]),
             )
             .first()
         )
@@ -86,7 +89,7 @@ class CatalogoService:
             .filter(
                 Producto.activo.is_(True),
                 Tienda.activo.is_(True),
-                EstadoAprobacion.codigo == "APROBADO",
+                EstadoAprobacion.codigo.in_(["APROBADO", "APPROVED"]),
             )
         )
         if categoria_id:

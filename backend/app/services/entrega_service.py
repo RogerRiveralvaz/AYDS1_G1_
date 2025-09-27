@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 from sqlalchemy.orm import joinedload, selectinload
@@ -11,10 +11,11 @@ from . import NotFoundError, ServiceError
 from .pedido_service import PedidoService
 
 _ENTREGA_TRANSICIONES: dict[str, set[str]] = {
-    "ASIGNADA": {"ACEPTADA"},
-    "ACEPTADA": {"EN_CAMINO"},
+    "ASIGNADA": {"ACEPTADA", "CANCELADA"},
+    "ACEPTADA": {"EN_CAMINO", "CANCELADA"},
     "EN_CAMINO": {"ENTREGADA"},
     "ENTREGADA": set(),
+    "CANCELADA": set(),
 }
 
 
@@ -36,7 +37,7 @@ class EntregaService:
             pedido=pedido,
             id_repartidor=repartidor_id,
             id_estado_entrega=estado.id_estado_entrega,
-            asignada_en=datetime.utcnow(),
+            asignada_en=datetime.now(timezone.utc),
         )
         db.session.add(entrega)
         db.session.commit()
@@ -89,36 +90,49 @@ class EntregaService:
 
         entrega.id_estado_entrega = estado.id_estado_entrega
         entrega.estado = estado
-        ahora = datetime.utcnow()
-        if codigo_estado == "ACEPTADA":
-            entrega.aceptada_en = ahora
-        elif codigo_estado == "EN_CAMINO":
-            entrega.recogida_en = ahora
-        elif codigo_estado == "ENTREGADA":
-            entrega.entregada_en = ahora
-            pedido = entrega.pedido or Pedido.query.get(entrega.id_pedido)
-            pedido_estado = None
-            if pedido:
-                if pedido.estado and pedido.estado.id_estado_pedido == pedido.id_estado_pedido:
-                    pedido_estado = pedido.estado.codigo
-                else:
-                    pedido_estado_obj = EstadoPedido.query.get(pedido.id_estado_pedido)
-                    pedido_estado = pedido_estado_obj.codigo if pedido_estado_obj else None
-            if pedido_estado not in {"CONFIRMADO", "ENTREGADO"}:
-                self._pedido_service.cambiar_estado(
-                    entrega.id_pedido,
-                    "CONFIRMADO",
-                    entrega.id_repartidor,
-                    "Confirmacion automatica por entrega",
-                )
-            self._pedido_service.cambiar_estado(
-                entrega.id_pedido,
-                "ENTREGADO",
-                entrega.id_repartidor,
-                "Entrega confirmada",
-            )
+        ahora = datetime.now(timezone.utc)
+        self._aplicar_transicion(entrega, codigo_estado, ahora)
         db.session.commit()
         return entrega
+
+    def _aplicar_transicion(self, entrega: Entrega, codigo_estado: str, marca_tiempo: datetime) -> None:
+        if codigo_estado == "ACEPTADA":
+            entrega.aceptada_en = marca_tiempo
+            return
+        if codigo_estado == "EN_CAMINO":
+            entrega.recogida_en = marca_tiempo
+            return
+        if codigo_estado == "ENTREGADA":
+            entrega.entregada_en = marca_tiempo
+            self._finalizar_pedido(entrega)
+            return
+        if codigo_estado == "CANCELADA":
+            entrega.aceptada_en = None
+            entrega.recogida_en = None
+            entrega.entregada_en = None
+
+    def _finalizar_pedido(self, entrega: Entrega) -> None:
+        pedido = entrega.pedido or Pedido.query.get(entrega.id_pedido)
+        if not pedido:
+            return
+        if pedido.estado and pedido.estado.id_estado_pedido == pedido.id_estado_pedido:
+            pedido_estado = pedido.estado.codigo
+        else:
+            pedido_estado_obj = EstadoPedido.query.get(pedido.id_estado_pedido)
+            pedido_estado = pedido_estado_obj.codigo if pedido_estado_obj else None
+        if pedido_estado not in {"CONFIRMADO", "ENTREGADO"}:
+            self._pedido_service.cambiar_estado(
+                entrega.id_pedido,
+                "CONFIRMADO",
+                entrega.id_repartidor,
+                "Confirmacion automatica por entrega",
+            )
+        self._pedido_service.cambiar_estado(
+            entrega.id_pedido,
+            "ENTREGADO",
+            entrega.id_repartidor,
+            "Entrega confirmada",
+        )
 
     def registrar_seguimiento(self, entrega: Entrega, lat: float, lng: float, nota: str | None = None) -> SeguimientoEntrega:
         seguimiento = SeguimientoEntrega(

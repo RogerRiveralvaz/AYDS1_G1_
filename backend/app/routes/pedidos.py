@@ -34,7 +34,7 @@ def _handle_service_error(err: ServiceError):
     return jsonify({"message": err.message}), err.status_code
 
 
-@bp.post("/")
+@bp.post("")
 @jwt_required()
 @roles_required("CLIENTE")
 def crear_pedido():
@@ -46,7 +46,7 @@ def crear_pedido():
     return jsonify({"pedido": _detalle_schema.dump(detalle)}), 201
 
 
-@bp.get("/")
+@bp.get("")
 @jwt_required()
 @roles_required("CLIENTE")
 def listar_pedidos_cliente():

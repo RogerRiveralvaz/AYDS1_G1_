@@ -79,17 +79,18 @@ export function useRegisterFlow() {
     };
 
     const details = state.details;
+    const telefono = "telefono" in details ? details.telefono : undefined;
     switch (details.rol) {
       case "CLIENTE":
         return {
           ...basePayload,
-          telefono: details.telefono,
           direccion: {
             linea1: details.direccion.linea1,
             ciudad: details.direccion.ciudad,
             pais: details.direccion.pais,
             referencia: details.direccion.referencia,
           },
+          ...(telefono ? { telefono } : {}),
         };
       case "TIENDA":
         return {
@@ -115,12 +116,12 @@ export function useRegisterFlow() {
             licencia_tipo: details.licencia_tipo || undefined,
             placa: details.placa || undefined,
           },
-          telefono: details.telefono,
+          ...(telefono ? { telefono } : {}),
         };
       case "ADMIN":
         return {
           ...basePayload,
-          telefono: details.telefono,
+          ...(telefono ? { telefono } : {}),
         };
       default:
         return basePayload;

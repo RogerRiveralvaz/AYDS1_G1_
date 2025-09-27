@@ -74,6 +74,15 @@ def listar_productos():
     return jsonify({"productos": _productos_schema.dump(productos)})
 
 
+
+@bp.get("/mi/productos/<int:producto_id>")
+@jwt_required()
+@roles_required("TIENDA")
+def obtener_producto(producto_id: int):
+    tienda = _tienda_service.obtener_activa(get_jwt_identity())
+    producto = _producto_service.obtener(tienda, producto_id)
+    return jsonify({"producto": _producto_schema.dump(producto)})
+
 @bp.post("/mi/productos")
 @jwt_required()
 @roles_required("TIENDA")
